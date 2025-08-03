@@ -385,10 +385,11 @@ bool DumpISD2100(const char* filename, bool verbose) {
 	free(buffer);
 
 	if (written != 0xB000) {
+		percentage = 0;
 		printf("Error: Failed to write complete data to file\n");
 		return false;
 	}
-
+	percentage = 0;
 	printf("Successfully read 44KB to %s\n", filename);
 	return true;
 }
@@ -507,10 +508,12 @@ bool VerifyISD2100(const char* filename, bool verbose) {
 	free(fileBuffer);
 
 	if (differences == 0) {
+		percentage = 0;
 		printf("Verification successful - flash contents match file\n");
 		return true;
 	}
 	else {
+		percentage = 0;
 		printf("Verification failed - %d byte(s) differ\n", differences);
 		return false;
 	}
@@ -692,6 +695,8 @@ bool WriteISD2100(const char* filename, bool verbose) {
 	percentage = 100;
 
 	// FINAL VERIFICATION: Read back some random addresses to check
+
+	percentage = 0;
 	printf("Verifying write...\n");
 	bool finalCheck = true;
 	for (int i = 0; i < 10; i++) {
@@ -719,10 +724,12 @@ bool WriteISD2100(const char* filename, bool verbose) {
 	free(buffer);
 
 	if (finalCheck) {
+		percentage = 0;
 		printf("Successfully wrote %s to flash\n", filename);
 		return true;
 	}
 	else {
+		percentage = 0;
 		printf("Write completed but verification failed - recommend full verify\n");
 		return true;  // Still return true since write completed
 	}
@@ -747,7 +754,7 @@ FT_HANDLE OpenFTDIByDescription(const char* description) {
 	return NULL;
 }
 
-bool ISD2100_AutoInitialize(unsigned int clockHz) {
+bool FTDI_AutoInitialize(unsigned int clockHz) {
 	FT_HANDLE ftHandle = NULL;
 
 	// Option 2: Open by partial description
@@ -762,14 +769,63 @@ bool ISD2100_AutoInitialize(unsigned int clockHz) {
 	MPSSE_Init(g_ftHandle);
 	MPSSE_SetClock(g_ftHandle, clockHz);
 
+	g_isInitialized = true;
+	return true;
+}
+
+bool ISD_INIT() {
 	// Initialize ISD2100
 	if (!ISD_Init(g_ftHandle)) {
 		FT_Close(g_ftHandle);
 		g_ftHandle = NULL;
 		return false;
 	}
+	return true;
+}
 
-	g_isInitialized = true;
+void FTDI_DEINIT() {
+	if (g_ftHandle != NULL) {
+		// 1. Make sure chip select is deasserted
+		SPI_Select(g_ftHandle, true);  // SS high
+
+		// 2. Reset from MPSSE mode to normal mode
+		FT_SetBitMode(g_ftHandle, 0x00, 0x00);  // This is important!
+
+		// 3. Purge any remaining data in buffers
+		FT_Purge(g_ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+
+		// 4. Close the device
+		FT_Close(g_ftHandle);
+
+		// 5. Clear global state
+		g_ftHandle = NULL;
+		g_isInitialized = false;
+		g_currentSSState = PIN_SS;
+		g_currentFreqHz = 0;
+	}
+}
+bool ISD2100_PowerDown() {
+	// Make sure chip is deselected at start
+	SPI_Select(g_ftHandle, true);
+
+	// Send power-up command
+	SPI_Select(g_ftHandle, false);
+	SPI_Transfer(g_ftHandle, 0x12);
+	SPI_Select(g_ftHandle, true);  // Deselect after power up!
+	Sleep(10);  // Important delay
+
+	return true;
+}
+bool ISD2100_Reset() {
+	// Make sure chip is deselected at start
+	SPI_Select(g_ftHandle, true);
+
+	// Send power-up command
+	SPI_Select(g_ftHandle, false);
+	SPI_Transfer(g_ftHandle, 0x14);
+	SPI_Select(g_ftHandle, true);  // Deselect after power up!
+	Sleep(10);  // Important delay
+
 	return true;
 }
 

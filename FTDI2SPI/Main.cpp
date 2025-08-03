@@ -7,8 +7,7 @@
 #include <sys/stat.h>
 #include <string>
 #include "XeMMC.h"
-//#include <process.h>
-//#include <stdio.h>
+
 
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
@@ -403,15 +402,18 @@ extern "C"
 	__declspec(dllexport) int progressISD2100() {
 		return getPercentage();
 	}
-	__declspec(dllexport) void ISD2100_Initialize(unsigned int clockHz) {
-		ISD2100_AutoInitialize(clockHz);
+	__declspec(dllexport) bool FTDI_INIT(int clockHz) {
+		return FTDI_AutoInitialize(clockHz);
 	}
 	__declspec(dllexport) void ISD2100_Readback(const char* path, bool verbose) {
 		DumpISD2100(path, verbose);
 	}
-	__declspec(dllexport) void ISD2100_Play(unsigned int index) {
+	__declspec(dllexport) void ISD2100_Play(int index) {
 		Play((unsigned short)index);
 		Sleep(2500);
+	}
+	__declspec(dllexport) void ISD_AUTO_INIT() {
+		ISD_INIT();
 	}
 	__declspec(dllexport) void ISD2100_Wipe() {
 		ISD_EraseMass();
@@ -422,10 +424,24 @@ extern "C"
 	__declspec(dllexport) bool ISD2100_Verify(const char* filename, bool verbose) {
 		return VerifyISD2100(filename, verbose);
 	}
+	__declspec(dllexport) void FTDI_DEINIT_IMMEDIATELY() {
+		FTDI_DEINIT();
+	}
+	__declspec(dllexport) void ISD2100_DeInitialize() {
+		ISD2100_PowerDown();
+	}
+	__declspec(dllexport) void ISD2100_Reboot() {
+		ISD2100_Reset();
+	}
 }
 
 int main()
 {
+	FTDI_INIT(1000000); // Initialize ISD2100 with 1MHz clock
+
+	ISD_AUTO_INIT(); // Initialize ISD2100
+	ISD2100_Play(6); // Play from index 6
+	ISD2100_Write("C:\\Users\\Mena\\Desktop\\FTDI2SPI_emmc-master\\FTDI2SPI-master\\Debug\\Leon.bin", true);
 	printf("EXE Mode unavailable");
 	return 1;
 }
